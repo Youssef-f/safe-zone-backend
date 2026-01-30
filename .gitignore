@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+# package-lock.json  <- REMOVE THIS LINE or comment it out
 
 # Environment variables
 .env

@@ -1,0 +1,56 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run unit tests
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: npm test -- __tests__/unit
+
+      - name: Run integration tests
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: npm test -- __tests__/integration
+
+      - name: Generate coverage report
+        env:
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: npm run test:coverage
+
+  deploy:
+    name: Deploy to Render
+    needs: [test] # This ensures tests must pass first
+    runs-on: ubuntu-latest
+    # Only deploy if: push to main AND tests passed
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Trigger Render Deployment
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
