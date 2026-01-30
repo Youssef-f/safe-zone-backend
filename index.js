@@ -8,11 +8,30 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+const validateFoodPlace = (req, res, next) => {
+  const { name, rating } = req.body;
+
+  if (!name || name.trim() === "") {
+    return res
+      .status(400)
+      .json({ error: "Name is required and cannot be empty" });
+  }
+
+  if (rating !== undefined && (rating < 0 || rating > 5)) {
+    return res.status(400).json({ error: "Rating must be between 0 and 5" });
+  }
+
+  next();
+};
+
 app.get("/", (req, res) => {
   res.send("Hello, World!");
 });
 
-// GET all food places
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
 app.get("/api/food-places", async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -28,7 +47,6 @@ app.get("/api/food-places", async (req, res) => {
   }
 });
 
-// GET single food place
 app.get("/api/food-places/:id", async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -37,8 +55,13 @@ app.get("/api/food-places/:id", async (req, res) => {
       .eq("id", req.params.id)
       .single();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Not found" });
+    if (error) {
+      if (error.code === "PGRST116") {
+        return res.status(404).json({ error: "Food place not found" });
+      }
+      throw error;
+    }
+
     res.json(data);
   } catch (error) {
     console.error("Error:", error);
@@ -46,8 +69,7 @@ app.get("/api/food-places/:id", async (req, res) => {
   }
 });
 
-// POST create new food place
-app.post("/api/food-places", async (req, res) => {
+app.post("/api/food-places", validateFoodPlace, async (req, res) => {
   try {
     const { name, address, cuisine_type, rating, price_range } = req.body;
 
@@ -65,8 +87,7 @@ app.post("/api/food-places", async (req, res) => {
   }
 });
 
-// PUT update food place
-app.put("/api/food-places/:id", async (req, res) => {
+app.put("/api/food-places/:id", validateFoodPlace, async (req, res) => {
   try {
     const { name, address, cuisine_type, rating, price_range } = req.body;
 
@@ -77,8 +98,13 @@ app.put("/api/food-places/:id", async (req, res) => {
       .select()
       .single();
 
-    if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Not found" });
+    if (error) {
+      if (error.code === "PGRST116") {
+        return res.status(404).json({ error: "Food place not found" });
+      }
+      throw error;
+    }
+
     res.json(data);
   } catch (error) {
     console.error("Error:", error);
@@ -86,7 +112,6 @@ app.put("/api/food-places/:id", async (req, res) => {
   }
 });
 
-// DELETE food place
 app.delete("/api/food-places/:id", async (req, res) => {
   try {
     const { error } = await supabase
@@ -102,6 +127,10 @@ app.delete("/api/food-places/:id", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;
